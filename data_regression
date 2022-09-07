@@ -1,0 +1,75 @@
+# https://blog.naver.com/chromatic_365/222657670527
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+%matplotlib inline
+import numpy as np
+import pymysql
+import matplotlib as mpl
+
+# mysql db 연동
+db = pymysql.connect(host='127.0.0.1',password='gkftndlTek!!',user='root',db='tp',charset='utf8', 
+    cursorclass=pymysql.cursors.DictCursor)
+
+cursor = db.cursor()
+
+query = "select FM,PU1,PU2,TE1,TE2,TE3,P1,P2,P3,P4 from wholeData where DATETIME between '2014-05-01 00:00:00' and '2014-08-31 23:00:00'"
+cursor.execute(query)
+db_export = cursor.fetchall()
+
+tp=pd.DataFrame(db_export)
+#db_result_df = db_result_df.drop([db_result_df.columns[0]], axis=1) # 중복 index열 삭제
+
+# scaling
+def standard_scaling(df, scale_columns):
+    for col in scale_columns:
+        series_mean = df[col].mean()
+        series_std = df[col].std()
+        df[col] = df[col].apply(lambda x: (x-series_mean)/series_std)
+    return df
+
+scale_columns = ['FM', 'PU1', 'PU2', 'TE1', 'TE2', 'TE3', 'P1', 'P2', 'P3','P4']
+tp_df = standard_scaling(tp, scale_columns)
+
+tp_df_corr=tp_df.corr()
+print(tp_df_corr)
+
+#https://blog.naver.com/moongda0404/222729519749
+# 대학본부의 2014, 2015 데이터로 2016 FM 예측
+
+from sklearn import linear_model
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
+#학습 데이터와 테스트 데이터로 분리
+#'FM'을 제외한 모든 칼럼들은 X
+X=tp[tp.columns.difference(['FM'])]
+
+y=tp['FM']
+
+#검증(test)는 20%로 한다. =test_siz=0.2
+X_train, X_test, y_train, y_test=train_test_split(X,y,test_size=0.2,random_state=19)
+
+#회귀 분석 객체 생성(선형 회귀 모델 생성)
+lr=linear_model.LinearRegression()
+
+#fit()는 기울기와 절편을 전달하기 위함
+model=lr.fit(X_train, y_train)
+
+print("\n")
+#학습된 계수를 출력
+print("학습된 계수:",lr.coef_)
+
+print("\n")
+#상수항을 출력
+print("상수항:",lr.intercept_)
+
+#새로운 값 예측
+x_new=X_test
+y_new=model.predict(x_new)
+
+print(type(y_test))
+
+y_compare={'y_test':y_test,'y_predicted':y_new}
+pd.DataFrame(y_compare)
